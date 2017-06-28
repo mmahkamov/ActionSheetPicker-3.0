@@ -56,8 +56,15 @@ CG_INLINE BOOL isIPhone4() {
 @implementation MyPopoverController
 + (BOOL)canShowPopover {
     if (IS_IPAD) {
+        // make extension friendly
+        Class UIApplicationClass = NSClassFromString(@"UIApplication");
+        if (!UIApplicationClass || ![UIApplicationClass respondsToSelector:@selector(sharedApplication)])
+            return YES;
+        
         if ([UITraitCollection class]) {
-            UITraitCollection *traits = [UIApplication sharedApplication].keyWindow.traitCollection;
+            UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+            
+            UITraitCollection *traits = application.keyWindow.traitCollection;
             if (traits.horizontalSizeClass == UIUserInterfaceSizeClassCompact)
                 return NO;
         }
@@ -129,6 +136,23 @@ CG_INLINE BOOL isIPhone4() {
 
 #pragma mark - Abstract Implementation
 
+- (UIWindow *)keyWindow {
+    UIWindow *window;
+    
+    Class UIApplicationClass = NSClassFromString(@"UIApplication");
+    
+    if (UIApplicationClass && [UIApplicationClass respondsToSelector:@selector(sharedApplication)]) {
+        UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+        window = application.delegate.window;
+    } else {
+        if(self.containerView && self.containerView.window) {
+            window = self.containerView.window;
+        }
+    }
+    
+    return nil;
+}
+
 - (instancetype)init {
     self = [super init];
     if (self) {
@@ -138,11 +162,17 @@ CG_INLINE BOOL isIPhone4() {
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnavailableInDeploymentTarget"
-        if ([UIApplication instancesRespondToSelector:@selector(supportedInterfaceOrientationsForWindow:)])
-            self.supportedInterfaceOrientations = (UIInterfaceOrientationMask) [[UIApplication sharedApplication]
+        // make extension friendly
+        Class UIApplicationClass = NSClassFromString(@"UIApplication");
+        
+        if (UIApplicationClass &&
+            [UIApplicationClass respondsToSelector:@selector(sharedApplication)] &&
+            [UIApplication instancesRespondToSelector:@selector(supportedInterfaceOrientationsForWindow:)]) {
+            UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+            self.supportedInterfaceOrientations = (UIInterfaceOrientationMask) [application
                     supportedInterfaceOrientationsForWindow:
-                            [UIApplication sharedApplication].keyWindow];
-        else {
+                            application.keyWindow];
+        } else {
             self.supportedInterfaceOrientations = UIInterfaceOrientationMaskAllButUpsideDown;
             if (IS_IPAD)
                 self.supportedInterfaceOrientations |= (1 << UIInterfaceOrientationPortraitUpsideDown);
@@ -582,7 +612,12 @@ CG_INLINE BOOL isIPhone4() {
 #pragma mark - Picker blur effect
 
 - (void)blurPickerBackground {
-    UIWindow *window = [UIApplication sharedApplication].delegate.window;
+    UIWindow *window = self.keyWindow;
+    
+    if(!window) {
+        return;
+    }
+    
     UIViewController *rootViewController = window.rootViewController;
 
     UIView *masterView = self.pickerView.superview;
@@ -625,7 +660,11 @@ CG_INLINE BOOL isIPhone4() {
     if (IS_IPAD) {
         if (!self.popoverDisabled && [MyPopoverController canShowPopover])
             return CGSizeMake(320, 320);
-        return [UIApplication sharedApplication].keyWindow.bounds.size;
+        if(self.keyWindow) {
+            return self.keyWindow.bounds.size;
+        } else {
+            return [UIScreen mainScreen].bounds.size;
+        }
     }
 
 #if defined(__IPHONE_8_0)
@@ -647,7 +686,13 @@ CG_INLINE BOOL isIPhone4() {
 }
 
 - (BOOL)isViewPortrait {
-    return UIInterfaceOrientationIsPortrait([UIApplication sharedApplication].statusBarOrientation);
+    Class UIApplicationClass = NSClassFromString(@"UIApplication");
+    if (!UIApplicationClass || ![UIApplicationClass respondsToSelector:@selector(sharedApplication)]) {
+        return UIDeviceOrientationIsPortrait(UIDevice.currentDevice.orientation);
+    } else {
+        UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+        return UIInterfaceOrientationIsPortrait(application.statusBarOrientation);
+    }
 }
 
 - (BOOL)isValidOrigin:(id)origin {
@@ -765,13 +810,15 @@ CG_INLINE BOOL isIPhone4() {
         });
     }
     @catch (NSException *exception) {
-        origin = [[[[UIApplication sharedApplication] keyWindow] rootViewController] view];
-        presentRect = CGRectMake(origin.center.x, origin.center.y, 1, 1);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [popover presentPopoverFromRect:presentRect inView:origin
-                   permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+        if(self.keyWindow) {
+            origin = [[self.keyWindow rootViewController] view];
+            presentRect = CGRectMake(origin.center.x, origin.center.y, 1, 1);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [popover presentPopoverFromRect:presentRect inView:origin
+                       permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
 
-        });
+            });
+        }
     }
 }
 

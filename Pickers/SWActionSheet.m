@@ -167,7 +167,19 @@ static const enum UIViewAnimationOptions options = UIViewAnimationOptionCurveEas
 
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-    return [UIApplication sharedApplication].statusBarStyle;
+    // make extension friendly
+    Class UIApplicationClass = NSClassFromString(@"UIApplication");
+    
+    if (UIApplicationClass && [UIApplicationClass respondsToSelector:@selector(sharedApplication)]) {
+        UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+        return application.statusBarStyle;
+    } else {
+        if(self.view && self.view.window && self.view.window.rootViewController) {
+            return self.view.window.rootViewController.preferredStatusBarStyle;
+        } else {
+            return UIStatusBarStyleDefault;
+        }
+    }
 }
 
 - (void)setActionSheet:(SWActionSheet *)actionSheet
@@ -203,7 +215,19 @@ static const enum UIViewAnimationOptions options = UIViewAnimationOptionCurveEas
 }
 
 - (BOOL)prefersStatusBarHidden {
-	return [UIApplication sharedApplication].statusBarHidden;
+    // make extension friendly
+    Class UIApplicationClass = NSClassFromString(@"UIApplication");
+    
+    if (UIApplicationClass && [UIApplicationClass respondsToSelector:@selector(sharedApplication)]) {
+        UIApplication *application = [UIApplication performSelector:@selector(sharedApplication)];
+        return application.statusBarHidden;
+    } else {
+        if(self.view && self.view.window && self.view.window.rootViewController) {
+            return self.view.window.rootViewController.prefersStatusBarHidden;
+        } else {
+            return NO;
+        }
+    }
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
